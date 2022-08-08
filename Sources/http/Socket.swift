@@ -26,6 +26,40 @@ class Socket {
         Darwin.connect(fd, info!.pointee.ai_addr, info!.pointee.ai_addrlen)
     }
     
+    private init(fd: Int32) {
+        self.fd = fd
+    }
+    
+    func bind(port: Int) {
+        var addr = sockaddr_in()
+        addr.sin_family = UInt8(AddressFamily.inet.value)
+        addr.sin_port = UInt16(port).bigEndian
+        addr.sin_addr.s_addr = INADDR_ANY.bigEndian
+        
+        _ = withUnsafePointer(to: addr) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                Darwin.bind(fd, $0, UInt32(MemoryLayout.size(ofValue: addr)))
+            }
+        }
+    }
+    
+    func listen(max connections: Int) {
+        Darwin.listen(fd, Int32(connections))
+    }
+    
+    func accept() -> Socket {
+        var addr = sockaddr_in()
+        var addrlen = socklen_t()
+        
+        let cfd = withUnsafeMutablePointer(to: &addr) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                Darwin.accept(fd, $0, &addrlen)
+            }
+        }
+        
+        return Socket(fd: cfd)
+    }
+    
     func send(_ data: Data) {
         data.withUnsafeBytes { buffer in
             var sent = 0
@@ -37,9 +71,9 @@ class Socket {
         }
     }
     
-    func receive() -> Data {
+    func receive(capacity: Int? = nil) -> Data {
         var data = Data()
-        let buffer = UnsafeMutableBufferPointer<CChar>.allocate(capacity: 1024)
+        let buffer = UnsafeMutableBufferPointer<CChar>.allocate(capacity: capacity ?? 1024)
         defer {
             buffer.deallocate()
         }
@@ -50,7 +84,7 @@ class Socket {
             
             let part = Data(bytes: buffer.baseAddress!, count: count)
             data.append(part)
-        } while count != 0
+        } while count != 0 && capacity == nil
         
         return data
     }
