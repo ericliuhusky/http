@@ -47,3 +47,21 @@ extension Response.StatusLine: TextConvertible {
         "\(version) \(statusCode.text) \(statusReasonPhrase)\(crlf)"
     }
 }
+
+extension Response {
+    static func notFound(body: String) -> Response {
+        Response(firstLine: Response.StatusLine(version: "HTTP/1.1",
+                                                statusCode: 404,
+                                                statusReasonPhrase: "NOT FOUND"),
+                 headerLines: [HeaderLine](headers: [:]),
+                 body: body.data(using: .utf8))
+    }
+    
+    static func ok(body: String) -> Response {
+        Response(firstLine: Response.StatusLine(version: "HTTP/1.1",
+                                                statusCode: 200,
+                                                statusReasonPhrase: "OK"),
+                 headerLines: [HeaderLine](headers: [:]),
+                 body: body.data(using: .utf8))
+    }
+}
