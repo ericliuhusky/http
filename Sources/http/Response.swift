@@ -7,37 +7,43 @@
 
 import Foundation
 
-public struct Response {
-    public let status: Int
-    public let headers: [String: String]
+public struct Response: Message {
+    let firstLine: StatusLine
+    let headerLines: [HeaderLine]
     public let body: Data?
+}
 
-    init(data: Data) {
-        let dataText = String(data: data, encoding: .utf8)!
-        let parts = dataText.components(separatedBy: "\r\n\r\n")
-        let headerText = parts[0]
-        let bodyText = parts[1]
-        
-        do {
-            let lines = headerText.split(separator: crlf.first!).map(String.init)
-            do {
-                let info = lines[0]
-                let texts = info.split(separator: " ").map(String.init)
-                let statusText = texts[1]
-                status = Int(statusText)!
-            }
-            
-            do {
-                let headerTextList = lines.dropFirst()
-                headers = headerTextList.reduce([:]) { partialResult, headerText in
-                    let pairs = headerText.components(separatedBy: ": ")
-                    let key = pairs[0]
-                    let value = pairs[1]
-                    return partialResult.merging([key: value]) { current, _ in current }
-                }
-            }
-        }
-        
-        body = bodyText.data(using: .utf8)
+public extension Response {
+    var statusCode: Int {
+        firstLine.statusCode
+    }
+    
+    var statusReasonPhrase: String {
+        firstLine.statusReasonPhrase
+    }
+    
+    var headers: [String: String] {
+        headerLines.headers
+    }
+}
+
+extension Response {
+    struct StatusLine {
+        let version: String
+        let statusCode: Int
+        let statusReasonPhrase: String
+    }
+}
+
+extension Response.StatusLine: TextConvertible {
+    init(text: String) {
+        let fields = text.components(separatedBy: " ")
+        version = fields[0]
+        statusCode = Int(text: fields[1])
+        statusReasonPhrase = fields[2]
+    }
+    
+    var text: String {
+        "\(version) \(statusCode.text) \(statusReasonPhrase)\(crlf)"
     }
 }

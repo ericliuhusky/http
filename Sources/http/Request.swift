@@ -7,43 +7,47 @@
 
 import Foundation
 
-struct Request {
-    let method: Method
-    let path: String
-    let query: String?
-    let headers: [String: String]
-    let body: Data?
-    
-    private var info: String {
-        let querySymbol = (query == nil ? "" : "?")
-        let methodText = method.rawValue
-        let relativeUrl = "\(path.isEmpty ? "/" : path)\(querySymbol)\(query ?? "")"
-        let httpVersion = "HTTP/1.1"
-        return "\(methodText) \(relativeUrl) \(httpVersion)\(crlf)"
+public struct Request: Message {
+    let firstLine: RequestLine
+    let headerLines: [HeaderLine]
+    public let body: Data?
+}
+
+public extension Request {
+    var method: Method {
+        firstLine.method
     }
     
-    private var headersText: String {
-        headers.reduce("") { partialResult, pairs in
-            let key = pairs.key
-            let value = pairs.value
-            let headerText = "\(key): \(value)\(crlf)"
-            return partialResult + headerText
-        }
+    var path: String {
+        firstLine.url.path
     }
     
-    private var header: Data {
-        let text = info + headersText + crlf
-        return text.data(using: .utf8)!
+    var query: String? {
+        firstLine.url.query
     }
     
-    var data: Data {
-        header + (body ?? Data())
+    var headers: [String: String] {
+        headerLines.headers
     }
 }
 
 extension Request {
-    enum Method: String {
-        case get = "GET"
-        case post = "POST"
+    struct RequestLine {
+        let method: Method
+        let url: URL
+        let version: String
+    }
+}
+
+extension Request.RequestLine: TextConvertible {
+    init(text: String) {
+        let fields = text.components(separatedBy: " ")
+        method = Method(text: fields[0])
+        url = URL(text: fields[1])
+        version = fields[2]
+    }
+    
+    var text: String {
+        "\(method.text) \(url.text) \(version)\(crlf)"
     }
 }

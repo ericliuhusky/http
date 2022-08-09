@@ -18,30 +18,29 @@ public class HttpClient {
         headers = [:]
     }
     
-    private func request(method: Request.Method, parameters: [String: String]? = nil, body: Data? = nil, block: @escaping CompletionBlock) {
+    private func request(method: Method, parameters: [String: String]? = nil, body: Data? = nil, block: @escaping CompletionBlock) {
         let host = url.host!
         let port = url.port ?? 80
-        let path = url.path
-        var query = url.query
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: true)
         if let parameters = parameters {
-            query = urlencodedQuery(parameters: parameters)
+            components?.query = urlencodedQuery(parameters: parameters)
         }
         
         let socket = Socket(family: .inet, type: .stream, protocol: .tcp)
         
         socket.connect(host: host, port: port)
         
-        let request = Request(method: method,
-                              path: path,
-                              query: query,
-                              headers: headers,
+        let request = Request(firstLine: Request.RequestLine(method: method,
+                                                             url: components!.url!,
+                                                             version: "HTTP/1.1"),
+                              headerLines: [HeaderLine](headers: headers),
                               body: body)
         
-        socket.send(request.data)
+        socket.send(request.messageData)
         
         let data = socket.receive()
         
-        let response = Response(data: data)
+        let response = Response(message: data)
         block(response)
     }
 }
