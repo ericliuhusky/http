@@ -22,7 +22,7 @@ extension Message {
         let lines = parts[0].components(separatedBy: crlf)
         let firstLine = FirstLine(text: lines[0])
         let headerLines = lines.dropFirst().map(HeaderLine.init(text:))
-        let body = Data(text: parts[1])
+        let body = Data(text: parts.dropFirst().joined(separator: crlf))
         self.init(firstLine: firstLine, headerLines: headerLines, body: body)
     }
     
