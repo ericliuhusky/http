@@ -29,6 +29,17 @@ public extension Request {
     var headers: [String: String] {
         headerLines.headers
     }
+    
+    var json: [String: Any] {
+        try! JSONSerialization.jsonObject(with: body!) as! [String: Any]
+    }
+    
+    var form: MultipartFormData {
+        let contentType = headers["Content-Type"]!
+        let boundaryIndex = contentType.range(of: "boundary=")!.upperBound
+        let boundary = String(contentType[boundaryIndex...])
+        return MultipartFormData(boundary: MultipartFormData.Boundary(text: boundary), data: body!)
+    }
 }
 
 extension Request {

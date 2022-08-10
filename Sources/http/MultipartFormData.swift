@@ -23,34 +23,26 @@ public class MultipartFormData {
         parts.append(part)
     }
     
+    public subscript(name: String) -> Part? {
+        parts.first { part in
+            part.name == name
+        }
+    }
+    
+    init(boundary: Boundary, data: Data) {
+        let text = String(data: data, encoding: .utf8)!
+        let partsText = text.replacingOccurrences(of: "\(boundary.endText)\(crlf)", with: "")
+        let partTextList = partsText.components(separatedBy: "\(boundary.startText)\(crlf)").dropFirst()
+        
+        parts = partTextList.map { partText in
+            Part(text: partText)
+        }
+    }
+    
     var data: Data {
-        let partsText = parts.map { part in
-            let contentDisposition = "Content-Disposition: form-data"
-            let nameText = "name=\"\(part.name)\""
-            var fileNameText = ""
-            if let fileName = part.fileName {
-                fileNameText = "filename=\"\(fileName)\""
-            }
-            var mimeTypeText = ""
-            if let mimeType = part.mimeType {
-                mimeTypeText = "Content-Type: \(mimeType)"
-            }
-            
-            let firstLine = [contentDisposition, nameText, fileNameText]
-                .filter({ !$0.isEmpty })
-                .joined(separator: "; ")
-            
-            let partText = [boundary.startText, firstLine, mimeTypeText].reduce("") { partialResult, line in
-                if line.isEmpty {
-                    return partialResult
-                }
-                return partialResult + "\(line)\(crlf)"
-            }
-            
-            let dataText = String(data: part.data, encoding: .utf8)!
-            
-            return partText + crlf + dataText + crlf
-        }.joined()
+        let partsText = parts.reduce("") { partialResult, part in
+            partialResult + boundary.startText + crlf + part.text
+        }
         
         let text = partsText + boundary.endText + crlf
         return text.data(using: .utf8)!
@@ -59,11 +51,16 @@ public class MultipartFormData {
 
 extension MultipartFormData {
     struct Boundary {
-        let id = UUID()
+        let text: String
         
-        var text: String {
-            "\(id)"
+        init() {
+            text = UUID().uuidString
         }
+        
+        init(text: String) {
+            self.text = text
+        }
+        
         var startText: String {
             "--\(text)"
         }
@@ -73,10 +70,10 @@ extension MultipartFormData {
     }
     
     public struct Part {
-        let name: String
-        var fileName: String? = nil
-        var mimeType: String? = nil
-        let data: Data
+        public let name: String
+        public var fileName: String? = nil
+        public var mimeType: String? = nil
+        public let data: Data
         
         public init(name: String, fileName: String? = nil, mimeType: String? = nil, data: Data) {
             self.name = name
@@ -84,5 +81,42 @@ extension MultipartFormData {
             self.mimeType = mimeType
             self.data = data
         }
+    }
+}
+
+extension MultipartFormData.Part: TextConvertible {
+    init(text: String) {
+        let lines = text.components(separatedBy: crlf).filter { !$0.isEmpty }
+        let fields = lines[0].components(separatedBy: "; ")
+        
+        let nameIndex = fields[1].range(of: "name=")!.upperBound
+        let name = fields[1][nameIndex...].replacingOccurrences(of: "\"", with: "")
+        
+        if fields.count == 3 && lines.count == 3 {
+            let fileNameIndex = fields[2].range(of: "filename=")!.upperBound
+            let fileName = fields[2][fileNameIndex...].replacingOccurrences(of: "\"", with: "")
+            let mimeTypeIndex = lines[1].range(of: "Content-Type: ")!.upperBound
+            let mimeType = lines[1][mimeTypeIndex...].replacingOccurrences(of: "\"", with: "")
+            
+            self.fileName = fileName
+            self.mimeType = mimeType
+        }
+        
+        let data = lines.last!.data(using: .utf8)!
+        
+        self.name = name
+        self.data = data
+    }
+    
+    var text: String {
+        let contentDisposition = "Content-Disposition: form-data"
+        
+        var partHeader = "\(contentDisposition); name=\"\(name)\"\(crlf)"
+        if let fileName = fileName, let mimeType = mimeType {
+            partHeader = "\(contentDisposition); name=\"\(name)\"; filename=\"\(fileName)\"\(crlf)"
+            + "Content-Type: \(mimeType)\(crlf)"
+        }
+        
+        return partHeader + crlf + data.text + crlf
     }
 }
