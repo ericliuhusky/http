@@ -30,7 +30,7 @@ public class HttpServer {
         while true {
             let client = server.accept()
             
-            let data = client.receive(capacity: 4096)
+            let data = client.receive()
             let request = Request(message: data)
             
             var response = Response.notFound(body: "not found")

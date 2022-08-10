@@ -71,20 +71,25 @@ class Socket {
         }
     }
     
-    func receive(capacity: Int? = nil) -> Data {
+    func receive() -> Data {
         var data = Data()
-        let buffer = UnsafeMutableBufferPointer<CChar>.allocate(capacity: capacity ?? 1024)
+        let buffer = UnsafeMutableBufferPointer<CChar>.allocate(capacity: 30)
         defer {
             buffer.deallocate()
         }
         
+        var flag: Int32 = 0
         var count = 0
         repeat {
-            count = recv(fd, buffer.baseAddress, buffer.count, 0)
+            count = recv(fd, buffer.baseAddress, buffer.count, flag)
+            if count < 30 {
+                flag = MSG_DONTWAIT
+            }
             
+            guard count > 0 else { break }
             let part = Data(bytes: buffer.baseAddress!, count: count)
             data.append(part)
-        } while count != 0 && capacity == nil
+        } while count > 0
         
         return data
     }
